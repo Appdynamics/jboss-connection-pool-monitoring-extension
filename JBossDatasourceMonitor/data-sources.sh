@@ -12,6 +12,7 @@
 #     1.02  28 Jul 2016   BvK  Automated data-source discovery. Tested against JBoss EAP 6 & 7
 #     1.03   4 Aug 2016   BvK  Streamlined options. Better error reporting and bug fixes
 #     1.04   8 Aug 2016   BvK  Added DOMAIN option.
+#     1.05  17 Apr 2017   BvK  Optimized cpu usage when processing many datasources
 #
 # General notes:
 # 1. After setting the user defined variables, verify your settings by running this script from the command prompt
@@ -76,7 +77,8 @@ DOMAIN=""
 #
 # --- End of User defined variables ---------------------------------------------------
 
-TMP_FILE=jboss_data-sources_$$.txt
+CMD_FILE=jboss_data-sources_$$.cmd
+TMP_FILE=jboss_data-sources_$$.tmp
 ERR_FILE=jboss_data-sources_$$.err
 
 case `uname` in
@@ -108,10 +110,16 @@ $DOMAIN/subsystem=datasources:read-resource" | $JBOSS_CLI | $AWK -F '[ ,"{}]+' -
     DATA_SOURCES=`cat $TMP_FILE`
   fi
 
-  for ds in $DATA_SOURCES; do
+  echo "connect $JBOSS_HOST:$JBOSS_PORT" > $TMP_FILE
 
-    echo "connect $JBOSS_HOST:$JBOSS_PORT
-$DOMAIN/subsystem=datasources/data-source=${ds}/statistics=pool:read-resource(include-runtime=true)" | $JBOSS_CLI > $TMP_FILE 2>> $ERR_FILE
+  for ds in $DATA_SOURCES; do
+    echo "$DOMAIN/subsystem=datasources/data-source=${ds}/statistics=pool:read-resource(include-runtime=true)" >> $TMP_FILE
+  done
+
+  if [ -n "$DATA_SOURCES" ]; then
+
+    mv $TMP_FILE $CMD_FILE
+    cat $CMD_FILE | $JBOSS_CLI > $TMP_FILE 2>> $ERR_FILE
     ERR=$?
 
     if [ $ERR -ne 0 ]; then
@@ -125,9 +133,15 @@ $DOMAIN/subsystem=datasources/data-source=${ds}/statistics=pool:read-resource(in
 
     if [ $ERR -eq 0 -a -s $TMP_FILE ]; then
 
-      cat $TMP_FILE | $AWK -F '[ ,"{}]+' -v OFS='' -v D=${ds} '
-function printIt (_m, _v) { if (length(_m) && match(_v, "^[0-9]+$")) print "name=Custom Metrics|JBoss|data-sources|" D "|" _m ",aggregator=OBSERVATION,value=" _v }
+      cat $TMP_FILE | $AWK -F '[ ,"{}]+' -v OFS='' '
+function printIt (_m, _v) {
+  if (length(_m) && match(_v, "^[0-9]+$"))
+    print "name=Custom Metrics|JBoss|data-sources|" D "|" _m ",aggregator=OBSERVATION,value=" _v
+}
+
+/data-source=/ { sub(".*data-source=", "", $3); sub("/statistics=.*", "", $3); D = $3 }
 /=>/ {gsub("L$", "", $4); printIt($2, $4)}' 2>> $ERR_FILE
+
       ERR=$?
 
       if [ $ERR -ne 0 ]; then
@@ -135,9 +149,10 @@ function printIt (_m, _v) { if (length(_m) && match(_v, "^[0-9]+$")) print "name
       fi
     fi
 
-  done
+  fi
 
-  rm -f $TMP_FILE
+  #mv $TMP_FILE tmp.txt
+  rm -f $TMP_FILE $CMD_FILE
   if [ ! -s $ERR_FILE ]; then
     rm -f $ERR_FILE
   fi
