@@ -41,12 +41,12 @@ Execute in **jboss-cli.sh** command:
 /subsystem=datasources/data-source=ExampleDS:write-attribute(name=statistics-enabled,value=true)
 ```
 
-Alternatively set the statistics-enabled attribute to true in the **standalone\*.xml** or **domain.xml** respectively.
+Alternatively set the statistics-enabled attribute to true in the **standalone.xml** or **domain.xml** respectively.
 ```
 <datasource jndi-name="java:jboss/datasources/ExampleDS" pool-name="ExampleDS" enabled="true" use-java-context="true" statistics-enabled="true">
 ```
 
-To know more, please follow this [link](https://access.redhat.com/solutions/268793#EAP63) (Red Hat account required)
+A restart of the JBoss server is required to take effect. To know more, please follow this [link](https://access.redhat.com/solutions/268793#EAP63) (Red Hat account required)
 
 ## Installation ##
 
@@ -69,7 +69,10 @@ To know more, please follow this [link](https://access.redhat.com/solutions/2687
 ## Troubleshooting steps ##
 Use the following suggestions to troubleshoot any issues.
 
--  Check the machine agent log files for any issues
+-  Check the machine agent log files for any issues. When seeing in the machine-agent.log **WARN** messages like below, you need to set and export **JAVA_HOME** in the --- User defined variables --- section of data-sources.sh (e.g. export JAVA_HOME=/opt/java/jdk1.7.0_79).
+```
+[Worker-6] 06 Jun 2017 15:04:50,781  WARN MonitorTaskRunner$1 - ignoring error line:[/opt/jboss-6.3/bin/jboss-cli.sh: line 70: java: command not found]
+```
 - Check any non empty **jboss_data-sources_$$.err** file in the **JBossDatasourceMonitor** directory.
 - Start **jboss-cli.sh** from the command line using the credentials of the machine agent and execute commands **"connect"** and **"/subsystem=datasources:read-resource"** similar to the following example:
 
